@@ -644,13 +644,20 @@ namespace esphome
 
                     msg_buffer.push_back(input);
                     size_t idx = msg_buffer.size() - 1;
-const uint8_t expected[16] = {0xF4,0xF5,0x01,0x40,0x97,0x01,0x00,0xFE,0x01,0x01,0x01,0x01,0x00,0x66,0x00,0x01};                    if (idx >= 2 && idx < expected_msg_size - 4) {
+                    // Byte 4 is a device/firmware variant identifier: different AEH-W4A1 units report
+                    // either 0x49 or 0x97 here. Both are accepted; it is not used to derive message
+                    // length or checksum, so this does not affect protocol parsing.
+                    const uint8_t expected[16] = {0xF4,0xF5,0x01,0x40,0x00,0x01,0x00,0xFE,0x01,0x01,0x01,0x01,0x00,0x66,0x00,0x01};
+                    if (idx >= 2 && idx < expected_msg_size - 4) {
                         checksum += msg_buffer[idx];
                         if (DEBUG_LOGGING) ESP_LOGD("aircon_climate", "Checksum add: 0x%02X, current checksum: %d", msg_buffer[idx], checksum);
                     }
                     if (idx < 16) {
-                        if (msg_buffer[idx] != expected[idx]) {
-                            ESP_LOGE("aircon_climate", "Header mismatch at byte %zu: expected %02X, got %02X", idx, expected[idx], msg_buffer[idx]);
+                        bool byte_ok = (idx == 4)
+                            ? (msg_buffer[idx] == 0x49 || msg_buffer[idx] == 0x97)
+                            : (msg_buffer[idx] == expected[idx]);
+                        if (!byte_ok) {
+                            ESP_LOGE("aircon_climate", "Header mismatch at byte %zu: got %02X", idx, msg_buffer[idx]);
                             in_message = false;
                             msg_buffer.clear();
                             return 0;
@@ -738,7 +745,12 @@ const uint8_t expected[16] = {0xF4,0xF5,0x01,0x40,0x97,0x01,0x00,0xFE,0x01,0x01,
                     if (temp_c >= 16 && temp_c <= 32)
                     {
                         int index = temp_c - 16;
-                        std::vector<uint8_t> msg(temp_c_messages[index], temp_c_messages[index] + sizeof(temp_16_C));
+                        // Each temp_XX_C array has its own length (temp_16_C is 51 bytes due to
+                        // byte-stuffing on its checksum; all others are 50 bytes). Using a fixed
+                        // sizeof(temp_16_C) for every temperature read past the end of every other
+                        // array, appending a garbage byte and corrupting the frame sent to the AC.
+                        size_t msg_len = (temp_c == 16) ? sizeof(temp_16_C) : 50;
+                        std::vector<uint8_t> msg(temp_c_messages[index], temp_c_messages[index] + msg_len);
                         snprintf(desc_buffer, sizeof(desc_buffer), "Set Temperature to %d°C", temp_c);
                         ESP_LOGD("aircon_climate", "Enqueuing %s", desc_buffer);
                         send_message(desc_buffer, msg);
@@ -750,7 +762,9 @@ const uint8_t expected[16] = {0xF4,0xF5,0x01,0x40,0x97,0x01,0x00,0xFE,0x01,0x01,
                     if (temp_f >= 61 && temp_f <= 86)
                     {
                         int index = temp_f - 61;
-                        std::vector<uint8_t> msg(temp_f_messages[index], temp_f_messages[index] + sizeof(temp_61_F));
+                        // See note in the Celsius branch above: don't assume every template is the
+                        // same length as temp_61_F, in case a future checksum triggers byte-stuffing.
+                        std::vector<uint8_t> msg(temp_f_messages[index], temp_f_messages[index] + 50);
                         snprintf(desc_buffer, sizeof(desc_buffer), "Set Temperature to %d°F", temp_f);
                         ESP_LOGD("aircon_climate", "Enqueuing %s", desc_buffer);
                         send_message(desc_buffer, msg);
