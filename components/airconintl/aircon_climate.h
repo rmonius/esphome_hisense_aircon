@@ -101,7 +101,7 @@ namespace esphome
                 {
                     last_read_time = millis();
                     msg_size = get_response(read(), uart_buf);
-                    if (msg_size > 0)
+                    if (msg_size > 0 && (size_t)msg_size == sizeof(Device_Status))
                     {
                         ESP_LOGD(
                             "aircon_climate",
@@ -149,9 +149,11 @@ namespace esphome
                             ((Device_Status *)uart_buf)->left_right,
                             ((Device_Status *)uart_buf)->up_down);
 
-                        // Convert temperatures to celsius
-                        float tgt_temp = (((Device_Status *)uart_buf)->indoor_temperature_setting - 32) * 0.5556f;
-                        float curr_temp = (((Device_Status *)uart_buf)->indoor_temperature_status - 32) * 0.5556f;
+                        // The raw fields are already in Celsius (confirmed: indoor_temperature_setting
+                        // matches the actual requested target temperature 1:1, e.g. raw 24 == 24C).
+                        // No Fahrenheit-style conversion needed here.
+                        float tgt_temp = ((Device_Status *)uart_buf)->indoor_temperature_setting;
+                        float curr_temp = ((Device_Status *)uart_buf)->indoor_temperature_status;
 
                         if (tgt_temp > 7 && tgt_temp < 33)
                             target_temperature = tgt_temp;
@@ -315,6 +317,22 @@ namespace esphome
                 set_sensor(indoor_humidity_status, ((Device_Status *)uart_buf)->indoor_humidity_status);
             }
 
+            // Patch the temperature byte (index 19, encoding = 2*tempC + 1, confirmed against
+            // every temp_XX_C template) and recompute the checksum (sum of bytes[2 .. size-5],
+            // stored big-endian at [size-4, size-3]) so a modified command still passes the
+            // AC's checksum check. Used to bake the real target temperature into mode_cool/
+            // mode_heat instead of relying on their hardcoded default (26C / 23C) followed by
+            // a separate Set Temperature command, which caused a brief visible overshoot.
+            void patch_temp_and_checksum(std::vector<uint8_t> &msg, uint8_t temp_c)
+            {
+                if (msg.size() < 48 || temp_c < 16 || temp_c > 32) return;
+                msg[19] = 2 * temp_c + 1;
+                uint16_t sum = 0;
+                for (size_t i = 2; i < msg.size() - 4; i++) sum += msg[i];
+                msg[msg.size() - 4] = (sum >> 8) & 0xFF;
+                msg[msg.size() - 3] = sum & 0xFF;
+            }
+
             void control(const ClimateCall &call) override
             {
                 ESP_LOGD("aircon_climate", "Control called");
@@ -352,17 +370,17 @@ namespace esphome
                     case climate::CLIMATE_MODE_COOL:
                     {
                         std::vector<uint8_t> msg(mode_cool, mode_cool + sizeof(mode_cool));
+                        patch_temp_and_checksum(msg, (uint8_t)roundf(cool_tgt_temp));
                         ESP_LOGD("aircon_climate", "Enqueuing Set Mode to Cool");
                         send_message("Set Mode to Cool", msg);
-                        set_temp(cool_tgt_temp);
                         break;
                     }
                     case climate::CLIMATE_MODE_HEAT:
                     {
                         std::vector<uint8_t> msg(mode_heat, mode_heat + sizeof(mode_heat));
+                        patch_temp_and_checksum(msg, (uint8_t)roundf(heat_tgt_temp));
                         ESP_LOGD("aircon_climate", "Enqueuing Set Mode to Heat");
                         send_message("Set Mode to Heat", msg);
-                        set_temp(heat_tgt_temp);
                         break;
                     }
                     case climate::CLIMATE_MODE_FAN_ONLY:
@@ -644,17 +662,18 @@ namespace esphome
 
                     msg_buffer.push_back(input);
                     size_t idx = msg_buffer.size() - 1;
-                    // Byte 4 is a device/firmware variant identifier: different AEH-W4A1 units report
-                    // either 0x49 or 0x97 here. Both are accepted; it is not used to derive message
-                    // length or checksum, so this does not affect protocol parsing.
+                    // Byte 4 identifies the message type/variant:
+                    //   0x49 or 0x97 -> full Device_Status response (device/firmware variant)
+                    //   0x0B         -> short ACK response to a control command (20 bytes total)
                     const uint8_t expected[16] = {0xF4,0xF5,0x01,0x40,0x00,0x01,0x00,0xFE,0x01,0x01,0x01,0x01,0x00,0x66,0x00,0x01};
+                    static const size_t SHORT_ACK_SIZE = 20;
                     if (idx >= 2 && idx < expected_msg_size - 4) {
                         checksum += msg_buffer[idx];
                         if (DEBUG_LOGGING) ESP_LOGD("aircon_climate", "Checksum add: 0x%02X, current checksum: %d", msg_buffer[idx], checksum);
                     }
                     if (idx < 16) {
                         bool byte_ok = (idx == 4)
-                            ? (msg_buffer[idx] == 0x49 || msg_buffer[idx] == 0x97)
+                            ? (msg_buffer[idx] == 0x49 || msg_buffer[idx] == 0x97 || msg_buffer[idx] == 0x0B)
                             : (msg_buffer[idx] == expected[idx]);
                         if (!byte_ok) {
                             ESP_LOGE("aircon_climate", "Header mismatch at byte %zu: got %02X", idx, msg_buffer[idx]);
@@ -665,7 +684,7 @@ namespace esphome
                             if (DEBUG_LOGGING) ESP_LOGD("aircon_climate", "Header byte %zu matches: 0x%02X", idx, msg_buffer[idx]);
                         }
                         if (idx == 4) {
-                            expected_msg_size = sizeof(Device_Status);
+                            expected_msg_size = (msg_buffer[idx] == 0x0B) ? SHORT_ACK_SIZE : sizeof(Device_Status);
                             if (DEBUG_LOGGING) ESP_LOGD("aircon_climate", "Expected message size: %d", expected_msg_size);
                             if (expected_msg_size > UART_BUF_SIZE) {
                                 ESP_LOGE("aircon_climate", "Message size too large: %d", expected_msg_size);
@@ -675,6 +694,8 @@ namespace esphome
                             }
                         }
                     } else {
+                        // Common tail logic for both message types (Device_Status and short ACK):
+                        // checksum verification then F4/FB footer, sized against expected_msg_size.
                         if (idx == expected_msg_size - 3) {
                             uint16_t rxd_checksum = (msg_buffer[expected_msg_size - 4] << 8) | msg_buffer[expected_msg_size - 3];
                             if (DEBUG_LOGGING) ESP_LOGD("aircon_climate", "CRC check: computed %d, received %d", checksum, rxd_checksum);
