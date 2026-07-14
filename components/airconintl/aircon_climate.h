@@ -665,16 +665,23 @@ namespace esphome
                     // Byte 4 identifies the message type/variant:
                     //   0x49 or 0x97 -> full Device_Status response (device/firmware variant)
                     //   0x0B         -> short ACK response to a control command (20 bytes total)
-                    const uint8_t expected[16] = {0xF4,0xF5,0x01,0x40,0x00,0x01,0x00,0xFE,0x01,0x01,0x01,0x01,0x00,0x66,0x00,0x01};
+                    // Byte 13 similarly differs: 0x66 on Device_Status responses, 0x65 on the
+                    // short ACK (matches the 0x65 already used in outgoing control commands).
+                    const uint8_t expected[16] = {0xF4,0xF5,0x01,0x40,0x00,0x01,0x00,0xFE,0x01,0x01,0x01,0x01,0x00,0x00,0x00,0x01};
                     static const size_t SHORT_ACK_SIZE = 20;
                     if (idx >= 2 && idx < expected_msg_size - 4) {
                         checksum += msg_buffer[idx];
                         if (DEBUG_LOGGING) ESP_LOGD("aircon_climate", "Checksum add: 0x%02X, current checksum: %d", msg_buffer[idx], checksum);
                     }
                     if (idx < 16) {
-                        bool byte_ok = (idx == 4)
-                            ? (msg_buffer[idx] == 0x49 || msg_buffer[idx] == 0x97 || msg_buffer[idx] == 0x0B)
-                            : (msg_buffer[idx] == expected[idx]);
+                        bool byte_ok;
+                        if (idx == 4) {
+                            byte_ok = (msg_buffer[idx] == 0x49 || msg_buffer[idx] == 0x97 || msg_buffer[idx] == 0x0B);
+                        } else if (idx == 13) {
+                            byte_ok = (msg_buffer[idx] == 0x65 || msg_buffer[idx] == 0x66);
+                        } else {
+                            byte_ok = (msg_buffer[idx] == expected[idx]);
+                        }
                         if (!byte_ok) {
                             ESP_LOGE("aircon_climate", "Header mismatch at byte %zu: got %02X", idx, msg_buffer[idx]);
                             in_message = false;
