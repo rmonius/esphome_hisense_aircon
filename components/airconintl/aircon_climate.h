@@ -47,6 +47,7 @@ namespace esphome
                 preset = climate::CLIMATE_PRESET_NONE;
                 current_temperature = 20.0f;
                 target_temperature = 22.0f;
+                this->set_supported_custom_presets({"Schlafen 1", "Schlafen 2", "Schlafen 3", "Schlafen 4"});
             }
 
             void dump_config() override {};
@@ -529,24 +530,31 @@ namespace esphome
                     {
                         std::vector<uint8_t> turbo_off_msg(turbo_off, turbo_off + sizeof(turbo_off));
                         std::vector<uint8_t> eco_off_msg(energysave_off, energysave_off + sizeof(energysave_off));
+                        std::vector<uint8_t> sleep_off_msg(sleep_off, sleep_off + sizeof(sleep_off));
                         ESP_LOGD("aircon_climate", "Enqueuing Disable Turbo");
                         ESP_LOGD("aircon_climate", "Enqueuing Disable Energy Save");
+                        ESP_LOGD("aircon_climate", "Enqueuing Disable Sleep");
                         send_message("Disable Turbo", turbo_off_msg);
                         send_message("Disable Energy Save", eco_off_msg);
+                        send_message("Disable Sleep", sleep_off_msg);
                         break;
                     }
                     case climate::CLIMATE_PRESET_BOOST:
                     {
                         std::vector<uint8_t> msg(turbo_on, turbo_on + sizeof(turbo_on));
+                        std::vector<uint8_t> sleep_off_msg(sleep_off, sleep_off + sizeof(sleep_off));
                         ESP_LOGD("aircon_climate", "Enqueuing Enable Turbo");
                         send_message("Enable Turbo", msg);
+                        send_message("Disable Sleep", sleep_off_msg);
                         break;
                     }
                     case climate::CLIMATE_PRESET_ECO:
                     {
                         std::vector<uint8_t> msg(energysave_on, energysave_on + sizeof(energysave_on));
+                        std::vector<uint8_t> sleep_off_msg(sleep_off, sleep_off + sizeof(sleep_off));
                         ESP_LOGD("aircon_climate", "Enqueuing Enable Energy Save");
                         send_message("Enable Energy Save", msg);
+                        send_message("Disable Sleep", sleep_off_msg);
                         break;
                     }
                     default:
@@ -554,6 +562,40 @@ namespace esphome
                     }
 
                     preset = pre;
+                    this->clear_custom_preset_();
+                    this->publish_state();
+                }
+
+                if (call.has_custom_preset())
+                {
+                    auto custom_pre = call.get_custom_preset();
+
+                    if (custom_pre == "Schlafen 1")
+                    {
+                        std::vector<uint8_t> msg(sleep_1, sleep_1 + sizeof(sleep_1));
+                        ESP_LOGD("aircon_climate", "Enqueuing Enable Sleep 1");
+                        send_message("Enable Sleep 1", msg);
+                    }
+                    else if (custom_pre == "Schlafen 2")
+                    {
+                        std::vector<uint8_t> msg(sleep_2, sleep_2 + sizeof(sleep_2));
+                        ESP_LOGD("aircon_climate", "Enqueuing Enable Sleep 2");
+                        send_message("Enable Sleep 2", msg);
+                    }
+                    else if (custom_pre == "Schlafen 3")
+                    {
+                        std::vector<uint8_t> msg(sleep_3, sleep_3 + sizeof(sleep_3));
+                        ESP_LOGD("aircon_climate", "Enqueuing Enable Sleep 3");
+                        send_message("Enable Sleep 3", msg);
+                    }
+                    else if (custom_pre == "Schlafen 4")
+                    {
+                        std::vector<uint8_t> msg(sleep_4, sleep_4 + sizeof(sleep_4));
+                        ESP_LOGD("aircon_climate", "Enqueuing Enable Sleep 4");
+                        send_message("Enable Sleep 4", msg);
+                    }
+
+                    this->set_custom_preset_(custom_pre);
                     this->publish_state();
                 }
             }
