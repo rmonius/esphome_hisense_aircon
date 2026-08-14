@@ -1,4 +1,4 @@
-from esphome.components import climate, sensor, uart
+from esphome.components import climate, sensor, switch, uart
 import esphome.config_validation as cv
 import esphome.codegen as cg
 import esphome.pins as pins
@@ -18,7 +18,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@pslawinski"]
 DEPENDENCIES = ["climate"]
-AUTO_LOAD = ["sensor"]
+AUTO_LOAD = ["sensor", "switch"]
 CONF_COMPRESSOR_FREQUENCY = "compressor_frequency"
 CONF_COMPRESSOR_FREQUENCY_SETTING = "compressor_frequency_setting"
 CONF_COMPRESSOR_FREQUENCY_SEND = "compressor_frequency_send"
@@ -31,9 +31,11 @@ CONF_HUMIDITY_STATUS = "humidity_status"
 CONF_TEMPERATURE_UNIT = "temperature_unit"
 CONF_RE_PIN = "re_pin"
 CONF_DE_PIN = "de_pin"
+CONF_DISPLAY = "display"
 
 airconintl_ns = cg.esphome_ns.namespace("airconintl")
 AirconClimate = airconintl_ns.class_("AirconClimate", cg.PollingComponent, climate.Climate, uart.UARTDevice)
+AirconDisplaySwitch = airconintl_ns.class_("AirconDisplaySwitch", switch.Switch)
 
 CONFIG_SCHEMA = cv.All(
     climate.climate_schema(AirconClimate)
@@ -110,6 +112,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_RE_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_DE_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_DISPLAY): switch.switch_schema(AirconDisplaySwitch),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -161,3 +164,5 @@ async def to_code(config):
     if CONF_DE_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_DE_PIN])
         cg.add(var.set_de_pin(pin))
+    if CONF_DISPLAY in config:
+        await switch.new_switch(config[CONF_DISPLAY], var)

@@ -12,6 +12,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/switch/switch.h"
 
 #include <deque>
 #include <string>
@@ -75,6 +76,21 @@ namespace esphome
             void set_indoor_humidity_status_sensor(Sensor *sensor) { this->indoor_humidity_status = sensor; }
             void set_re_pin(GPIOPin *pin) { this->re_pin = pin; }
             void set_de_pin(GPIOPin *pin) { this->de_pin = pin; }
+            void set_display(bool state)
+            {
+                if (state)
+                {
+                    std::vector<uint8_t> msg(display_on, display_on + sizeof(display_on));
+                    ESP_LOGD("aircon_climate", "Enqueuing Enable Display");
+                    send_message("Enable Display", msg);
+                }
+                else
+                {
+                    std::vector<uint8_t> msg(display_off, display_off + sizeof(display_off));
+                    ESP_LOGD("aircon_climate", "Enqueuing Disable Display");
+                    send_message("Disable Display", msg);
+                }
+            }
 
             void setup() override
             {
@@ -851,6 +867,21 @@ namespace esphome
                     }
                 }
             }
+        };
+
+        class AirconDisplaySwitch : public switch_::Switch
+        {
+        public:
+            AirconDisplaySwitch(AirconClimate *parent) : parent_(parent) {}
+
+        protected:
+            void write_state(bool state) override
+            {
+                this->parent_->set_display(state);
+                this->publish_state(state);
+            }
+
+            AirconClimate *parent_;
         };
     }
 }
