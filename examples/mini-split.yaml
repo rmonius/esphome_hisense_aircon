@@ -37,6 +37,8 @@ climate:
       name: "Indoor Humidity setting"
     humidity_status:
       name: "Indoor Humidity status"
+    display:
+      name: "AC Display"
 
 switch:
   - platform: restart
