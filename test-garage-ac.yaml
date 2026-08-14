@@ -3,7 +3,7 @@ esphome:
   friendly_name: garage_ac
 
 external_components:
-  - source: github://pslawinski/esphome_airconintl@packaging
+  - source: github://rmonius/esphome_hisense_aircon
 
 uart:
   tx_pin: 1
