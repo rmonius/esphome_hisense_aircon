@@ -22,7 +22,8 @@ This ESPHome component plugs into the same 4-pin port, uses the same RS485 commu
 - **Climate Control**: Full temperature control in Fahrenheit or Celsius, with support for heating, cooling, fan-only, and dry modes.
 - **Fan Modes**: Auto, low, medium, high, and quiet fan speeds.
 - **Swing Control**: Horizontal and vertical swing options, including combined swing.
-- **Presets**: Turbo (boost) and energy-saving modes.
+- **Presets**: Turbo (boost), energy-saving (eco), and four sleep levels (Schlafen 1-4).
+- **Display Control**: Turn the unit's display on/off, with state readback.
 - **Sensor Monitoring**: Real-time data from compressor frequency, outdoor/indoor temperatures, humidity, and more.
 - **RS485 Communication**: Reliable serial communication with configurable RE/DE pins for half-duplex operation.
 
@@ -32,7 +33,7 @@ Add the following to your ESPHome YAML configuration:
 
 ```yaml
 external_components:
-  - source: github://pslawinski/esphome_airconintl
+  - source: github://rmonius/esphome_hisense_aircon
 
 climate:
   - platform: airconintl
@@ -48,6 +49,34 @@ climate:
 - `temperature_unit`: Set to "F" for Fahrenheit or "C" for Celsius (default: "F").
 - `re_pin`: GPIO pin for RS485 receive enable (optional, for RS485 control).
 - `de_pin`: GPIO pin for RS485 transmit enable (optional, for RS485 control).
+- `display`: Optional [switch](https://esphome.io/components/switch/index.html) config to control the unit's display (see below).
+
+## Presets
+
+In addition to the standard `BOOST` (turbo) and `ECO` (energy-saving) presets, the unit's
+four sleep levels are exposed as custom presets:
+
+- `Schlafen 1`
+- `Schlafen 2`
+- `Schlafen 3`
+- `Schlafen 4`
+
+These show up alongside the standard presets in the Home Assistant climate card's preset
+dropdown.
+
+## Display Switch
+
+Add a `display` switch to turn the unit's display on/off from Home Assistant. The switch
+also reflects the display's actual current state, read back from the unit's status
+messages.
+
+```yaml
+climate:
+  - platform: airconintl
+    # ... other options
+    display:
+      name: "AC Display"
+```
 
 ## Supported Sensors
 
