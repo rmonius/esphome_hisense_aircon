@@ -285,7 +285,7 @@ namespace esphome
 
                         if (this->display_switch != nullptr)
                         {
-                            bool display_on_state = ((Device_Status *)uart_buf)->display_led;
+                            bool display_on_state = !((Device_Status *)uart_buf)->display_led;
                             ESP_LOGD("aircon_climate", "display_led: %d", display_on_state);
                             this->display_switch->publish_state(display_on_state);
                         }
