@@ -157,6 +157,12 @@ namespace esphome
 
                         ESP_LOGD(
                             "aircon_climate",
+                            "outdoor_machine: %d four_way: %d",
+                            ((Device_Status *)uart_buf)->outdoor_machine,
+                            ((Device_Status *)uart_buf)->four_way);
+
+                        ESP_LOGD(
+                            "aircon_climate",
                             "indoor_temp_set: %d indoor_temp_stat: %d",
                             ((Device_Status *)uart_buf)->indoor_temperature_setting,
                             ((Device_Status *)uart_buf)->indoor_temperature_status);
