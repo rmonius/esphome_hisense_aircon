@@ -91,6 +91,7 @@ namespace esphome
                     send_message("Disable Display", msg);
                 }
             }
+            void set_display_switch(switch_::Switch *sw) { this->display_switch = sw; }
 
             void setup() override
             {
@@ -280,6 +281,13 @@ namespace esphome
                         else if (this->mode == climate::CLIMATE_MODE_HEAT && target_temperature > 0)
                         {
                             heat_tgt_temp = target_temperature;
+                        }
+
+                        if (this->display_switch != nullptr)
+                        {
+                            bool display_on_state = ((Device_Status *)uart_buf)->display_led;
+                            ESP_LOGD("aircon_climate", "display_led: %d", display_on_state);
+                            this->display_switch->publish_state(display_on_state);
                         }
 
                         send_state = IDLE;
@@ -664,6 +672,8 @@ namespace esphome
 
             GPIOPin *re_pin{nullptr};
             GPIOPin *de_pin{nullptr};
+
+            switch_::Switch *display_switch{nullptr};
 
         private:
             struct Message {

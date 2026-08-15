@@ -165,4 +165,5 @@ async def to_code(config):
         pin = await cg.gpio_pin_expression(config[CONF_DE_PIN])
         cg.add(var.set_de_pin(pin))
     if CONF_DISPLAY in config:
-        await switch.new_switch(config[CONF_DISPLAY], var)
+        sw = await switch.new_switch(config[CONF_DISPLAY], var)
+        cg.add(var.set_display_switch(sw))
