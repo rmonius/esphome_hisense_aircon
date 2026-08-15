@@ -283,14 +283,12 @@ namespace esphome
                             heat_tgt_temp = target_temperature;
                         }
 
-                        // Readback for the display switch is disabled for now - see LED bit
-                        // diagnostics below. None of indoor_led/indicate_led/display_led/back_led
-                        // has been confirmed to reliably track the physical display state yet.
-                        ESP_LOGD("aircon_climate", "LED bits: indoor_led=%d indicate_led=%d display_led=%d back_led=%d",
-                            ((Device_Status *)uart_buf)->indoor_led,
-                            ((Device_Status *)uart_buf)->indicate_led,
-                            ((Device_Status *)uart_buf)->display_led,
-                            ((Device_Status *)uart_buf)->back_led);
+                        if (this->display_switch != nullptr)
+                        {
+                            bool display_on_state = ((Device_Status *)uart_buf)->back_led;
+                            ESP_LOGD("aircon_climate", "back_led: %d", display_on_state);
+                            this->display_switch->publish_state(display_on_state);
+                        }
 
                         send_state = IDLE;
                         // Publish updated state to HA
