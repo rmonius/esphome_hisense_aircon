@@ -647,9 +647,11 @@ namespace esphome
                     climate::CLIMATE_MODE_DRY,
                 });
                 traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF,
-                                                  climate::CLIMATE_SWING_BOTH,
+                                                  // Not supported by this unit (no horizontal oscillation):
+                                                  // climate::CLIMATE_SWING_BOTH,
                                                   climate::CLIMATE_SWING_VERTICAL,
-                                                  climate::CLIMATE_SWING_HORIZONTAL});
+                                                  // climate::CLIMATE_SWING_HORIZONTAL,
+                                                  });
                 traits.set_supported_fan_modes({
                     climate::CLIMATE_FAN_AUTO,
                     climate::CLIMATE_FAN_LOW,
